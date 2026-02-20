@@ -1,0 +1,18 @@
+# ==========================================
+# FORENSIC WHITELIST - STRICT SECURITY MODE
+# ==========================================
+
+# Block everything by default
+*
+
+# Allow directory traversal
+!*/
+
+# STRICT WHITELIST: Only these specific 4 files are tracked
+!PRESENTATION.pdf
+!AI_diagramming_DATABASE.png
+!AI_ER_SCHEMA.png
+!Pipeline_AI.png
+
+# Allow the .gitignore itself to be tracked and versioned
+!.gitignore
