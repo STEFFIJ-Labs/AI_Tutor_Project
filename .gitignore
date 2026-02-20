@@ -16,3 +16,4 @@
 
 # Allow the .gitignore itself to be tracked and versioned
 !.gitignore
+~/AI_Tutor_Project.sql
