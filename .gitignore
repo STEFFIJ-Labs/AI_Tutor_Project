@@ -1,21 +1,30 @@
 # ==========================================
-# FORENSIC WHITELIST - STRICT SECURITY MODE
+# WHITELIST - STRICT SECURITY MODE
 # ==========================================
-
 # Block everything by default
 *
 
 # Allow directory traversal
 !*/
 
-# STRICT WHITELIST: Only these specific 4 files are tracked
+# --- ORIGINAL FILES ---
 !PRESENTATION.pdf
 !AI_diagramming_DATABASE.png
 !AI_ER_SCHEMA.png
 !Pipeline_AI.png
 
-# Allow the .gitignore itself to be tracked and versioned
+# --- ADDED TODAY (2026-03-04) ---
+!.github/
+!.github/workflows/
+!.github/workflows/deploy-schema.yml
+!schema.sql
+
+# --- GIT & DOCS ---
 !.gitignore
-~/AI_Tutor_Project.sql
-~/AI_Tutor_Project.py
-<< 'EOF' > DOCUMENTATION.md.md
+!README.md
+
+# ==========================================
+# HOW TO ADD A NEW FILE
+# Add a line below with: !your-file-name.ext
+# To track an entire folder: !your-folder/**
+# ==========================================
