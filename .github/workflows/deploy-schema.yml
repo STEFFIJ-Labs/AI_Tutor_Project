@@ -31,4 +31,5 @@ jobs:
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP Status: $HTTP_CODE"
           echo "Response: $BODY"
-          if [ "$HTTP_CODE" != "200" ]; then exit 1; fi
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
+          echo "✅ Schema deployed successfully!"
