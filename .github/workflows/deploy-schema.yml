@@ -13,16 +13,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install PostgreSQL client
-        run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client
-
-      - name: Execute schema.sql
+      - name: Debug secrets (safe)
         env:
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          psql \
-            -h aws-0-eu-west-1.pooler.supabase.com \
-            -p 6543 \
-            -U "postgres.smredidbutbkwkzymipt" \
-            -d postgres \
-            -f schema.sql
+          echo "PROJECT starts with: ${PROJECT:0:4}..."
+          echo "TOKEN starts with: ${TOKEN:0:4}..."
+          echo "TOKEN length: ${#TOKEN}"
+
