@@ -6,3 +6,4 @@ CREATE TABLE IF NOT EXISTS public.language_variant (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 ALTER TABLE public.language_variant ENABLE ROW LEVEL SECURITY;
+-- trigger_sync
