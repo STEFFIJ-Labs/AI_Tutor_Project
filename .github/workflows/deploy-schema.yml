@@ -21,5 +21,8 @@ jobs:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           psql \
-            "postgresql://postgres:${PGPASSWORD}@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?user=postgres.smredidbutbkwkzymipt" \
+            -h aws-0-eu-west-1.pooler.supabase.com \
+            -p 6543 \
+            -U "postgres.smredidbutbkwkzymipt" \
+            -d postgres \
             -f schema.sql
