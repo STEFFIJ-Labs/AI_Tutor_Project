@@ -8,3 +8,4 @@ CREATE TABLE IF NOT EXISTS public.language_variant (
 ALTER TABLE public.language_variant ENABLE ROW LEVEL SECURITY;
 -- trigger_sync
 -- trigger_deployment
+-- sync_trigger
