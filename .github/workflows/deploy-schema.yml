@@ -13,19 +13,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install PostgreSQL client
+      - name: Execute schema.sql via Supabase Management API
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client
-
-      - name: Execute schema.sql via psql
-        env:
-          PGPASSWORD: ${{ secrets.DB_PASSWORD }}
-        run: |
-          psql \
-            -h db.${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co \
-            -U postgres \
-            -d postgres \
-            -p 5432 \
-            -f schema.sql \
-            --set ON_ERROR_STOP=1
+          SQL=$(cat schema.sql)
+          curl -s --fail-with-body \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${{ secrets.SUPABASE_PROJECT_ID }}/database/query" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}"
