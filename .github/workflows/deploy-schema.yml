@@ -13,12 +13,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Debug secrets (safe)
-        env:
-          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          PROJECT: ${{ secrets.SUPABASE_PROJECT_ID }}
-        run: |
-          echo "PROJECT starts with: ${PROJECT:0:4}..."
-          echo "TOKEN starts with: ${TOKEN:0:4}..."
-          echo "TOKEN length: ${#TOKEN}"
+      - name: Install jq
+        run: sudo apt-get install -y jq
 
+      - name: Execute schema.sql via Supabase API
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(jq -Rs . < schema.sql)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ]; then exit 1; fi
