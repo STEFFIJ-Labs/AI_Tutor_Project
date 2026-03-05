@@ -16,7 +16,7 @@
 # --- ADDED  (2026-03-05) ---
 !.github/
 !.github/workflows/
-!.github/workflows/deploy-schema-v2.yml
+!.github/workflows/deploy-schema.yml
 # --- SQL --- 
 !schema.sql
 !add_referential_actions.sql
