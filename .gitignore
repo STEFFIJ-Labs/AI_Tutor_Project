@@ -28,3 +28,6 @@
 # Add a line below with: !your-file-name.ext
 # To track an entire folder: !your-folder/**
 # ==========================================
+!add_referential_actions.sql
+!BUG_REPORT.md
+!DOCUMENTATION.md
