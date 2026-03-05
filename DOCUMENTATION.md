@@ -19,3 +19,9 @@ As per the assignment requirements:
 1. **Creation Script:** The raw DDL and DML codes used to build the structure and insert initial test data are located in `creation_script.sql`.
 2. **Database Dump:** The final physical state of the database, including the auto-generated relationships and JSON objects, has been exported as an SQL dump and is available in `database_schema.sql`.
 3. **AI Pipeline Simulation:** A Python script (`ai_pipeline_simulator.py`) using `psycopg2` was developed to demonstrate how the AI layer queries the `JSONB` fields natively, bridging the relational database with the AI inference logic.
+
+## v2.1 - Referential Actions (2026-03-05)
+- Added ON DELETE / ON UPDATE to all foreign keys
+- File: add_referential_actions.sql
+- Method: safe ALTER TABLE, no data loss
+- RESTRICT on parent tables, CASCADE on bridge/weak tables
