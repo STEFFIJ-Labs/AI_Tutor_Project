@@ -66,4 +66,3 @@ jobs:
           echo "Verification result: $BODY"
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
           echo "verify_schema.sql executed successfully"
-# updated Thu Mar  5 04:57:56 PM UTC 2026
