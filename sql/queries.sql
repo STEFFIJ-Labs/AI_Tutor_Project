@@ -189,7 +189,9 @@ ORDER BY total_units DESC;
 --   thousands of times per day in production and must be fast.
 -- ============================================================
 
-CREATE OR REPLACE VIEW v_content_full_context AS
+DROP VIEW IF EXISTS v_content_full_context;
+CREATE VIEW v_content_full_context
+WITH (security_invoker = true) AS
 SELECT
     cu.unit_id,
     cu.content_raw,
