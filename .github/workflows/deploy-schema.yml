@@ -95,8 +95,7 @@ jobs:
           sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
-          pg_dump "postgresql://postgres.smredidbutbkwkzymipt:${SUPABASE_DB_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres" \
-            --schema=public \
+          /usr/lib/postgresql/17/bin/pg_dump "postgresql://postgres.smredidbutbkwkzymipt:${SUPABASE_DB_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres" \          
             --no-owner \
             --no-acl \
             -f dump_ai_tutor.sql
