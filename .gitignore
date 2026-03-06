@@ -13,7 +13,7 @@
 !AI_ER_SCHEMA.png
 !Pipeline_AI.png
 
-# --- ADDED  (2026-03-05) ---
+# --- ADDED  (2026-03-06) ---
 !.github/
 !.github/workflows/
 !.github/workflows/deploy-schema.yml
@@ -21,6 +21,9 @@
 !schema.sql
 !add_referential_actions.sql
 !verify_schema.sql
+!seed_data.sql
+# --- PY ---
+!firebase_to_sql.py
 
 # --- GIT & DOCS ---
 !.gitignore
