@@ -101,5 +101,16 @@ jobs:
           echo "HTTP Status: $HTTP_CODE"
           echo "Query results: $BODY"
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
-          echo "queries.sql executed successfully"  
+          echo "queries.sql executed successfully" 
+      - name: Export database dump
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          pg_dump "postgresql://postgres.smredidbutbkwkzymipt:${SUPABASE_DB_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres" \
+            --schema=public \
+            --no-owner \
+            --no-acl \
+            -f dump_ai_tutor.sql
+          echo "Dump completed"
+          wc -l dump_ai_tutor.sql
   
