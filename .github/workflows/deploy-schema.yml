@@ -84,10 +84,12 @@ jobs:
           echo "Query results: $BODY"
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
           echo "queries.sql executed successfully" 
+          
       - name: Export database dump
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
+          sudo apt-get install -y postgresql-client-17
           pg_dump "postgresql://postgres.smredidbutbkwkzymipt:${SUPABASE_DB_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres" \
             --schema=public \
             --no-owner \
@@ -95,4 +97,3 @@ jobs:
             -f dump_ai_tutor.sql
           echo "Dump completed"
           wc -l dump_ai_tutor.sql
-  
