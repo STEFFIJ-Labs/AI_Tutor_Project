@@ -26,6 +26,9 @@
 # --- PY ---
 !firebase_to_sql.py
 
+# --- BACK UP  ----
+!backup/dump_ai_tutor.sql
+
 # --- GIT & DOCS ---
 !.gitignore
 !README.md
