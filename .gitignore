@@ -22,6 +22,7 @@
 !add_referential_actions.sql
 !verify_schema.sql
 !seed_data.sql
+!queries.sql
 # --- PY ---
 !firebase_to_sql.py
 
