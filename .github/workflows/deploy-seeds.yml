@@ -22,12 +22,24 @@ jobs:
         run: sudo apt-get install -y jq
 
       # ============================================================
-      # WHY jq -Rs . < file AND NOT SQL=$(cat file):
+      # WHY -d @/tmp/payload.json AND NOT -d "...$(jq...)":
       # Documented in Relazione_Tecnica_Forense_Completa.docx §4.3
-      # SQL=$(cat file) passes file content as bash argument -> hits
-      # Linux kernel ~128KB argument limit -> exit 126.
-      # jq -Rs . < file reads via stdin, no limit applies.
-      # Same pattern as deploy-schema.yml for schema.sql.
+      #
+      # Any shell substitution $(...) inside a -d "..." string is
+      # expanded by bash BEFORE curl runs. The expanded JSON string
+      # becomes a command-line argument. Linux kernel hard limit is
+      # ~128KB for all arguments combined. seed_02_* files are 115-137KB.
+      # Result: /usr/bin/curl: Argument list too long (exit 126)
+      #
+      # Solution: jq writes JSON to a temp file, curl reads it with
+      # -d @file (stdin, not argument). No kernel limit applies.
+      # curl never sees the content as an argument - only a filename.
+      #
+      # jq -Rs '{"query": .}' builds the correct JSON payload:
+      # { "query": "<entire SQL file as escaped string>" }
+      #
+      # ORDER IS MANDATORY - foreign key dependency chain:
+      # seed_01 -> seed_02_* -> seed_03_* -> seed_04a -> seed_04b
       # ============================================================
 
       - name: "SEED 01 - language_variant, tone_marker, cultural_context_tag, ai_model_registry"
@@ -35,12 +47,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_01_lookup.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_01_lookup.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -53,13 +66,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          SQL="INSERT INTO language_variant (iso_code, variant_name, is_pivot, parent_variant_id) VALUES ('und', 'Undetermined', false, NULL) ON CONFLICT (iso_code) DO NOTHING;"
+          echo "INSERT INTO language_variant (iso_code, variant_name, is_pivot, parent_variant_id) VALUES ('und', 'Undetermined', false, NULL) ON CONFLICT (iso_code) DO NOTHING;" | jq -Rs '{"query": .}' > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -72,12 +85,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_02_1_content.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_02_1_content.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -90,12 +104,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_02_2_content.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_02_2_content.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -108,12 +123,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_02_3_content.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_02_3_content.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -126,12 +142,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_02_4_content.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_02_4_content.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -144,12 +161,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_02_5_content.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_02_5_content.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -162,12 +180,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_02_6_content.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_02_6_content.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -180,12 +199,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_03_1_lemma.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_03_1_lemma.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -198,12 +218,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_03_2_lemma.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_03_2_lemma.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -216,12 +237,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_03_3_lemma.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_03_3_lemma.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -234,12 +256,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_04a_relations.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_04a_relations.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -252,12 +275,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
+          jq -Rs '{"query": .}' < sql/seed_04b_media.sql > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/seed_04b_media.sql)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | $BODY"
@@ -277,7 +301,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          SQL="SELECT table_name, COUNT(*)::text AS rows FROM (
+          echo "SELECT table_name, COUNT(*)::text AS rows FROM (
             SELECT 'language_variant' AS table_name, COUNT(*) FROM language_variant UNION ALL
             SELECT 'tone_marker',          COUNT(*) FROM tone_marker UNION ALL
             SELECT 'cultural_context_tag', COUNT(*) FROM cultural_context_tag UNION ALL
@@ -288,13 +312,13 @@ jobs:
             SELECT 'media_asset',          COUNT(*) FROM media_asset UNION ALL
             SELECT 'rel_content_tone',     COUNT(*) FROM rel_content_tone UNION ALL
             SELECT 'rel_content_context',  COUNT(*) FROM rel_content_context
-          ) counts ORDER BY table_name;"
+          ) counts ORDER BY table_name;" | jq -Rs '{"query": .}' > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+            -d @/tmp/payload.json)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "Seed verification row counts:"
