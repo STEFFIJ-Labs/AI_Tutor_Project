@@ -1,0 +1,332 @@
+name: Deploy Seeds
+
+on:
+  # Runs automatically after Deploy Schema completes successfully.
+  # This guarantees seeds always run AFTER the schema is recreated,
+  # never before. Prevents FK violation errors.
+  workflow_run:
+    workflows: ["Deploy Schema to Supabase"]
+    types:
+      - completed
+
+  # Manual trigger for re-running seeds without a schema deploy.
+  workflow_dispatch:
+
+jobs:
+  deploy-seeds:
+    runs-on: ubuntu-latest
+
+    # If triggered by workflow_run, only proceed if schema deploy succeeded.
+    # If triggered manually (workflow_dispatch), always proceed.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      # ============================================================
+      # WHY ONE CURL CALL PER FILE:
+      # The Supabase Management API executes ONE statement per request.
+      # Each seed file contains multiple statements wrapped in
+      # BEGIN ... COMMIT. The entire file is sent as a single string.
+      # This works because BEGIN/COMMIT is treated as one transaction.
+      #
+      # ORDER IS MANDATORY - foreign key dependency chain:
+      # seed_01 -> seed_02_* -> seed_03_* -> seed_04a -> seed_04b
+      #
+      # DEDUPLICATION:
+      # All INSERTs use ON CONFLICT DO NOTHING.
+      # content_unit also has UNIQUE constraint on content_hash (SHA-256).
+      # Running seeds multiple times is safe - no duplicates created.
+      # ============================================================
+
+      - name: "SEED 01 - language_variant, tone_marker, cultural_context_tag, ai_model_registry"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_01_lookup.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_01_lookup.sql"
+            exit 1
+          fi
+
+      - name: "SEED 02-1 - content_unit part 1/6"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_02_1_content.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_02_1_content.sql"
+            exit 1
+          fi
+
+      - name: "SEED 02-2 - content_unit part 2/6"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_02_2_content.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_02_2_content.sql"
+            exit 1
+          fi
+
+      - name: "SEED 02-3 - content_unit part 3/6"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_02_3_content.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_02_3_content.sql"
+            exit 1
+          fi
+
+      - name: "SEED 02-4 - content_unit part 4/6"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_02_4_content.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_02_4_content.sql"
+            exit 1
+          fi
+
+      - name: "SEED 02-5 - content_unit part 5/6"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_02_5_content.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_02_5_content.sql"
+            exit 1
+          fi
+
+      - name: "SEED 02-6 - content_unit part 6/6"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_02_6_content.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_02_6_content.sql"
+            exit 1
+          fi
+
+      - name: "SEED 03-1 - lemma + morpho_form part 1/3"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_03_1_lemma.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_03_1_lemma.sql"
+            exit 1
+          fi
+
+      - name: "SEED 03-2 - lemma + morpho_form part 2/3"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_03_2_lemma.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_03_2_lemma.sql"
+            exit 1
+          fi
+
+      - name: "SEED 03-3 - lemma + morpho_form part 3/3"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_03_3_lemma.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_03_3_lemma.sql"
+            exit 1
+          fi
+
+      - name: "SEED 04a - rel_content_tone + rel_content_context"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_04a_relations.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_04a_relations.sql"
+            exit 1
+          fi
+
+      - name: "SEED 04b - media_asset (GitHub LFS pointers)"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL=$(cat sql/seed_04b_media.sql)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: seed_04b_media.sql"
+            exit 1
+          fi
+
+      # ============================================================
+      # VERIFICATION - row counts per table
+      # Expected from generate_seeds.py:
+      #   content_unit : 2105
+      #   lemma        : 1603
+      #   morpho_form  : 2490
+      #   media_asset  : 1151
+      # ============================================================
+      - name: "VERIFY - Row counts"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL="SELECT table_name, COUNT(*)::text AS rows FROM (
+            SELECT 'language_variant' AS table_name, COUNT(*) FROM language_variant UNION ALL
+            SELECT 'tone_marker',          COUNT(*) FROM tone_marker UNION ALL
+            SELECT 'cultural_context_tag', COUNT(*) FROM cultural_context_tag UNION ALL
+            SELECT 'ai_model_registry',    COUNT(*) FROM ai_model_registry UNION ALL
+            SELECT 'content_unit',         COUNT(*) FROM content_unit UNION ALL
+            SELECT 'lemma',                COUNT(*) FROM lemma UNION ALL
+            SELECT 'morpho_form',          COUNT(*) FROM morpho_form UNION ALL
+            SELECT 'media_asset',          COUNT(*) FROM media_asset UNION ALL
+            SELECT 'rel_content_tone',     COUNT(*) FROM rel_content_tone UNION ALL
+            SELECT 'rel_content_context',  COUNT(*) FROM rel_content_context
+          ) counts ORDER BY table_name;"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "Seed verification row counts:"
+          echo "$BODY" | jq .
+
+          CONTENT_ROWS=$(echo "$BODY" | jq -r '.[] | select(.table_name == "content_unit") | .rows')
+          if [ "$CONTENT_ROWS" = "0" ] || [ -z "$CONTENT_ROWS" ]; then
+            echo "VERIFICATION FAILED - content_unit is empty"
+            exit 1
+          fi
+
+          echo "ALL SEEDS VERIFIED OK - content_unit has $CONTENT_ROWS rows"
