@@ -1,0 +1,139 @@
+name: Deploy Schema Fixes v3.1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sql/schema_fixes_v3_1.sql'
+  workflow_dispatch:
+
+jobs:
+  deploy-fixes:
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      # --------------------------------------------------------
+      # STEP 1: Run schema_fixes_v3_1.sql
+      # Contains: ISO trigger, 'und' variant, variant_confidence,
+      #           security_invoker VIEW, vector_index model_id
+      # --------------------------------------------------------
+      - name: Apply schema fixes v3.1
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID:   ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          echo "Deploying schema_fixes_v3_1.sql..."
+
+          SQL=$(cat sql/schema_fixes_v3_1.sql)
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+
+          echo "HTTP status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "DEPLOY FAILED - schema fixes not applied"
+            exit 1
+          fi
+
+          echo "schema_fixes_v3_1.sql deployed successfully"
+
+      # --------------------------------------------------------
+      # STEP 2: Verify all 5 fixes were applied correctly
+      # --------------------------------------------------------
+      - name: Verify fixes applied
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID:   ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          echo "Running post-deploy verification..."
+
+          VERIFY_SQL="
+          SELECT fix_name, status FROM (
+
+            SELECT 'FIX1_trigger' AS fix_name,
+              CASE WHEN COUNT(*) > 0 THEN 'OK'
+                   ELSE 'MISSING - ISO normalization trigger not found'
+              END AS status
+            FROM information_schema.triggers
+            WHERE trigger_schema      = 'public'
+              AND event_object_table  = 'language_variant'
+              AND trigger_name        = 'trg_normalize_iso_code'
+
+            UNION ALL
+
+            SELECT 'FIX2_und_variant',
+              CASE WHEN COUNT(*) > 0 THEN 'OK'
+                   ELSE 'MISSING - und fallback variant not inserted'
+              END
+            FROM language_variant WHERE iso_code = 'und'
+
+            UNION ALL
+
+            SELECT 'FIX3_variant_confidence',
+              CASE WHEN COUNT(*) > 0 THEN 'OK'
+                   ELSE 'MISSING - variant_confidence column not added'
+              END
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name   = 'content_unit'
+              AND column_name  = 'variant_confidence'
+
+            UNION ALL
+
+            SELECT 'FIX4_security_invoker',
+              CASE WHEN definition ILIKE '%security_invoker%' THEN 'OK'
+                   ELSE 'MISSING - VIEW still uses SECURITY DEFINER'
+              END
+            FROM pg_views
+            WHERE schemaname = 'public'
+              AND viewname   = 'v_content_full_context'
+
+            UNION ALL
+
+            SELECT 'FIX5_model_id_in_vector_index',
+              CASE WHEN COUNT(*) > 0 THEN 'OK'
+                   ELSE 'MISSING - model_id column not added to vector_index'
+              END
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name   = 'vector_index'
+              AND column_name  = 'model_id'
+
+          ) checks;"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$VERIFY_SQL" | jq -Rs .)}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+
+          echo "Verification results:"
+          echo "$BODY" | jq .
+
+          # Fail if any fix is MISSING
+          if echo "$BODY" | jq -e '.[] | select(.status | startswith("MISSING"))' > /dev/null 2>&1; then
+            echo "VERIFICATION FAILED - one or more fixes not applied"
+            exit 1
+          fi
+
+          echo "All 5 fixes verified successfully"
