@@ -421,12 +421,9 @@ BEFORE INSERT OR UPDATE ON language_variant
 FOR EACH ROW EXECUTE FUNCTION normalize_iso_code();
 
 -- FIX v3.1-2: 'und' fallback variant
--- ISO 639-2 standard code for undetermined language.
--- Used by Semantic Router when dialect discovery fails.
--- The Router classifies the row later and updates variant_id.
-INSERT INTO language_variant (iso_code, variant_name, is_pivot, parent_variant_id)
-VALUES ('und', 'Undetermined', false, NULL)
-ON CONFLICT (iso_code) DO NOTHING;
+-- Inserted by deploy-seeds.yml after seed_01_lookup.sql
+-- so that variant_id sequence (1=it-IT, 2=fi-FI, 3=en-EN)
+-- is already set before und is added as variant_id = 4.
 
 
 -- ============================================================
