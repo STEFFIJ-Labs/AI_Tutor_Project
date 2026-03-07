@@ -301,17 +301,17 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          echo "SELECT table_name, COUNT(*)::text AS rows FROM (
-            SELECT 'language_variant' AS table_name, COUNT(*) FROM language_variant UNION ALL
-            SELECT 'tone_marker',          COUNT(*) FROM tone_marker UNION ALL
-            SELECT 'cultural_context_tag', COUNT(*) FROM cultural_context_tag UNION ALL
-            SELECT 'ai_model_registry',    COUNT(*) FROM ai_model_registry UNION ALL
-            SELECT 'content_unit',         COUNT(*) FROM content_unit UNION ALL
-            SELECT 'lemma',                COUNT(*) FROM lemma UNION ALL
-            SELECT 'morpho_form',          COUNT(*) FROM morpho_form UNION ALL
-            SELECT 'media_asset',          COUNT(*) FROM media_asset UNION ALL
-            SELECT 'rel_content_tone',     COUNT(*) FROM rel_content_tone UNION ALL
-            SELECT 'rel_content_context',  COUNT(*) FROM rel_content_context
+          echo "SELECT table_name, rows FROM (
+            SELECT 'language_variant' AS table_name, COUNT(*)::text AS rows FROM language_variant UNION ALL
+            SELECT 'tone_marker',          COUNT(*)::text FROM tone_marker UNION ALL
+            SELECT 'cultural_context_tag', COUNT(*)::text FROM cultural_context_tag UNION ALL
+            SELECT 'ai_model_registry',    COUNT(*)::text FROM ai_model_registry UNION ALL
+            SELECT 'content_unit',         COUNT(*)::text FROM content_unit UNION ALL
+            SELECT 'lemma',                COUNT(*)::text FROM lemma UNION ALL
+            SELECT 'morpho_form',          COUNT(*)::text FROM morpho_form UNION ALL
+            SELECT 'media_asset',          COUNT(*)::text FROM media_asset UNION ALL
+            SELECT 'rel_content_tone',     COUNT(*)::text FROM rel_content_tone UNION ALL
+            SELECT 'rel_content_context',  COUNT(*)::text FROM rel_content_context
           ) counts ORDER BY table_name;" | jq -Rs '{"query": .}' > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
