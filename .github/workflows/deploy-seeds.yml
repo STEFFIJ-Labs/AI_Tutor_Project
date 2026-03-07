@@ -65,6 +65,28 @@ jobs:
             exit 1
           fi
 
+      - name: "SEED 01b - Insert und fallback language variant"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL="INSERT INTO language_variant (iso_code, variant_name, is_pivot, parent_variant_id)
+          VALUES ('und', 'Undetermined', false, NULL)
+          ON CONFLICT (iso_code) DO NOTHING;"
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: und variant insert"
+            exit 1
+          fi
+
       - name: "SEED 02-1 - content_unit part 1/6"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
