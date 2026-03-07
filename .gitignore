@@ -47,3 +47,15 @@
 !archive/creation_script_v1_0.sql
 !archive/creation_script_v1_0.sql
 !archive/seed_data_original_248kb.sql
+!sql/seed_01_lookup.sql
+!sql/seed_02_1_content.sql
+!sql/seed_02_2_content.sql
+!sql/seed_02_3_content.sql
+!sql/seed_02_4_content.sql
+!sql/seed_02_5_content.sql
+!sql/seed_02_6_content.sql
+!sql/seed_03_1_lemma.sql
+!sql/seed_03_2_lemma.sql
+!sql/seed_03_3_lemma.sql
+!sql/seed_04a_relations.sql
+!sql/seed_04b_media.sql
