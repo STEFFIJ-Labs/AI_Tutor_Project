@@ -1,6 +1,3 @@
-hema fixes v3 1 · SQL
-Copia
-
 -- ============================================================
 -- schema_fixes_v3_1.sql
 -- Author: Stefania Julin | AI Tutor Project - Progetto DATA
