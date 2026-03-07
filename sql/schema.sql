@@ -403,7 +403,7 @@ CREATE TABLE rel_content_tone (
 CREATE OR REPLACE FUNCTION normalize_iso_code()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.iso_code = CASE LOWER(REPLACE(NEW.iso_code, '-', ''))
+    NEW.iso_code = CASE LOWER(REPLACE(REPLACE(NEW.iso_code, '-', ''), '_', ''))
         WHEN 'itit' THEN 'it-IT'
         WHEN 'it'   THEN 'it-IT'
         WHEN 'fifi' THEN 'fi-FI'
