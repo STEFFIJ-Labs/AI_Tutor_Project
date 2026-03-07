@@ -292,7 +292,7 @@ jobs:
             "1"
 
           check_fix "FIX4_security_invoker" \
-            "SELECT COUNT(*)::text AS count FROM pg_views WHERE viewname = 'v_content_full_context' AND definition ILIKE '%security_invoker%'" \
+            "SELECT COUNT(*)::text AS count FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = 'v_content_full_context' AND n.nspname = 'public' AND c.reloptions::text ILIKE '%security_invoker%'" \
             "1"
 
           check_fix "FIX5_model_id" \
