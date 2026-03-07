@@ -10,7 +10,6 @@ on:
 jobs:
   deploy-fixes:
     runs-on: ubuntu-latest
-    environment: development
 
     steps:
       - name: Checkout repository
@@ -19,19 +18,37 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq
 
-      # --------------------------------------------------------
-      # STEP 1: Run schema_fixes_v3_1.sql
-      # Contains: ISO trigger, 'und' variant, variant_confidence,
-      #           security_invoker VIEW, vector_index model_id
-      # --------------------------------------------------------
-      - name: Apply schema fixes v3.1
+      # ============================================================
+      # WHY SEPARATE CURL CALLS:
+      # The Supabase Management API executes ONE statement per request.
+      # Sending multiple statements in one call causes silent failure:
+      # API returns HTTP 201 but only executes the first statement.
+      # Each fix below is therefore a separate API call.
+      # ============================================================
+
+      # ------------------------------------------------------------
+      # FIX 1a: Create ISO normalization function
+      # ------------------------------------------------------------
+      - name: "FIX 1a - Create normalize_iso_code() function"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID:   ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          echo "Deploying schema_fixes_v3_1.sql..."
-
-          SQL=$(cat sql/schema_fixes_v3_1.sql)
+          SQL="CREATE OR REPLACE FUNCTION normalize_iso_code()
+          RETURNS TRIGGER AS \$\$
+          BEGIN
+              NEW.iso_code = CASE LOWER(REPLACE(NEW.iso_code, '-', ''))
+                  WHEN 'itit' THEN 'it-IT'
+                  WHEN 'it'   THEN 'it-IT'
+                  WHEN 'fifi' THEN 'fi-FI'
+                  WHEN 'fi'   THEN 'fi-FI'
+                  WHEN 'enen' THEN 'en-EN'
+                  WHEN 'en'   THEN 'en-EN'
+                  ELSE NEW.iso_code
+              END;
+              RETURN NEW;
+          END;
+          \$\$ LANGUAGE plpgsql;"
 
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
@@ -42,98 +59,249 @@ jobs:
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
-
-          echo "HTTP status: $HTTP_CODE"
-          echo "Response: $BODY"
-
+          echo "HTTP: $HTTP_CODE | Response: $BODY"
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
-            echo "DEPLOY FAILED - schema fixes not applied"
+            echo "FAILED: normalize_iso_code function"
             exit 1
           fi
 
-          echo "schema_fixes_v3_1.sql deployed successfully"
-
-      # --------------------------------------------------------
-      # STEP 2: Verify all 5 fixes were applied correctly
-      # --------------------------------------------------------
-      - name: Verify fixes applied
+      # ------------------------------------------------------------
+      # FIX 1b: Attach trigger to language_variant
+      # ------------------------------------------------------------
+      - name: "FIX 1b - Create trigger trg_normalize_iso_code"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID:   ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          echo "Running post-deploy verification..."
-
-          VERIFY_SQL="
-          SELECT fix_name, status FROM (
-
-            SELECT 'FIX1_trigger' AS fix_name,
-              CASE WHEN COUNT(*) > 0 THEN 'OK'
-                   ELSE 'MISSING - ISO normalization trigger not found'
-              END AS status
-            FROM information_schema.triggers
-            WHERE trigger_schema      = 'public'
-              AND event_object_table  = 'language_variant'
-              AND trigger_name        = 'trg_normalize_iso_code'
-
-            UNION ALL
-
-            SELECT 'FIX2_und_variant',
-              CASE WHEN COUNT(*) > 0 THEN 'OK'
-                   ELSE 'MISSING - und fallback variant not inserted'
-              END
-            FROM language_variant WHERE iso_code = 'und'
-
-            UNION ALL
-
-            SELECT 'FIX3_variant_confidence',
-              CASE WHEN COUNT(*) > 0 THEN 'OK'
-                   ELSE 'MISSING - variant_confidence column not added'
-              END
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name   = 'content_unit'
-              AND column_name  = 'variant_confidence'
-
-            UNION ALL
-
-            SELECT 'FIX4_security_invoker',
-              CASE WHEN definition ILIKE '%security_invoker%' THEN 'OK'
-                   ELSE 'MISSING - VIEW still uses SECURITY DEFINER'
-              END
-            FROM pg_views
-            WHERE schemaname = 'public'
-              AND viewname   = 'v_content_full_context'
-
-            UNION ALL
-
-            SELECT 'FIX5_model_id_in_vector_index',
-              CASE WHEN COUNT(*) > 0 THEN 'OK'
-                   ELSE 'MISSING - model_id column not added to vector_index'
-              END
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name   = 'vector_index'
-              AND column_name  = 'model_id'
-
-          ) checks;"
+          SQL="CREATE OR REPLACE TRIGGER trg_normalize_iso_code
+          BEFORE INSERT OR UPDATE ON language_variant
+          FOR EACH ROW EXECUTE FUNCTION normalize_iso_code();"
 
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": $(echo "$VERIFY_SQL" | jq -Rs .)}")
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: trg_normalize_iso_code trigger"
+            exit 1
+          fi
 
-          echo "Verification results:"
-          echo "$BODY" | jq .
+      # ------------------------------------------------------------
+      # FIX 2: Insert 'und' fallback variant
+      # ------------------------------------------------------------
+      - name: "FIX 2 - Insert und fallback language variant"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL="INSERT INTO language_variant (iso_code, variant_name, is_pivot, parent_variant_id)
+          VALUES ('und', 'Undetermined', false, NULL)
+          ON CONFLICT (iso_code) DO NOTHING;"
 
-          # Fail if any fix is MISSING
-          if echo "$BODY" | jq -e '.[] | select(.status | startswith("MISSING"))' > /dev/null 2>&1; then
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: und variant insert"
+            exit 1
+          fi
+
+      # ------------------------------------------------------------
+      # FIX 3: Add variant_confidence column to content_unit
+      # ------------------------------------------------------------
+      - name: "FIX 3 - Add variant_confidence column to content_unit"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL="ALTER TABLE content_unit
+          ADD COLUMN IF NOT EXISTS variant_confidence FLOAT;"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: variant_confidence column"
+            exit 1
+          fi
+
+      # ------------------------------------------------------------
+      # FIX 4a: Drop view before recreating with security_invoker
+      # (PostgreSQL cannot change security mode with CREATE OR REPLACE)
+      # ------------------------------------------------------------
+      - name: "FIX 4a - Drop v_content_full_context view"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL="DROP VIEW IF EXISTS v_content_full_context;"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: DROP VIEW"
+            exit 1
+          fi
+
+      # ------------------------------------------------------------
+      # FIX 4b: Recreate view with security_invoker = true
+      # ------------------------------------------------------------
+      - name: "FIX 4b - Recreate v_content_full_context with security_invoker"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL="CREATE VIEW v_content_full_context
+          WITH (security_invoker = true) AS
+          SELECT
+              cu.unit_id,
+              cu.content_raw,
+              cu.content_type,
+              cu.cefr_level,
+              cu.is_idiom,
+              cu.difficulty,
+              lv.iso_code,
+              lv.variant_name,
+              lv.is_pivot,
+              tm.tone_name,
+              cct.context_name AS theme
+          FROM content_unit cu
+          JOIN language_variant          lv  ON lv.variant_id  = cu.variant_id
+          LEFT JOIN rel_content_tone     rct ON rct.unit_id     = cu.unit_id
+          LEFT JOIN tone_marker          tm  ON tm.tone_id      = rct.tone_id
+          LEFT JOIN rel_content_context  rcc ON rcc.unit_id     = cu.unit_id
+          LEFT JOIN cultural_context_tag cct ON cct.context_id  = rcc.context_id;"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: CREATE VIEW with security_invoker"
+            exit 1
+          fi
+
+      # ------------------------------------------------------------
+      # FIX 5: Add model_id column to vector_index
+      # ------------------------------------------------------------
+      - name: "FIX 5 - Add model_id column to vector_index"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          SQL="ALTER TABLE vector_index
+          ADD COLUMN IF NOT EXISTS model_id INT
+          REFERENCES ai_model_registry(model_id)
+          ON DELETE SET NULL ON UPDATE CASCADE;"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(echo "$SQL" | jq -Rs .)}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE | Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "FAILED: model_id column on vector_index"
+            exit 1
+          fi
+
+      # ============================================================
+      # POST-DEPLOY VERIFICATION
+      # 5 separate queries - one per fix - each returns OK or MISSING
+      # ============================================================
+      - name: "VERIFY - All 5 fixes applied"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          echo "Running post-deploy verification..."
+          FAILED=0
+
+          check_fix() {
+            local name=$1
+            local sql=$2
+            local expected=$3
+
+            RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -X POST \
+              "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"query\": $(echo "$sql" | jq -Rs .)}")
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | head -1)
+            COUNT=$(echo "$BODY" | jq -r '.[0].count // "0"')
+
+            if [ "$COUNT" = "$expected" ]; then
+              echo "  OK  $name"
+            else
+              echo "  MISSING  $name (got count=$COUNT, expected=$expected)"
+              FAILED=1
+            fi
+          }
+
+          check_fix "FIX1_trigger" \
+            "SELECT COUNT(*)::text AS count FROM information_schema.triggers WHERE trigger_name = 'trg_normalize_iso_code' AND event_object_table = 'language_variant'" \
+            "1"
+
+          check_fix "FIX2_und_variant" \
+            "SELECT COUNT(*)::text AS count FROM language_variant WHERE iso_code = 'und'" \
+            "1"
+
+          check_fix "FIX3_variant_confidence" \
+            "SELECT COUNT(*)::text AS count FROM information_schema.columns WHERE table_name = 'content_unit' AND column_name = 'variant_confidence'" \
+            "1"
+
+          check_fix "FIX4_security_invoker" \
+            "SELECT COUNT(*)::text AS count FROM pg_views WHERE viewname = 'v_content_full_context' AND definition ILIKE '%security_invoker%'" \
+            "1"
+
+          check_fix "FIX5_model_id" \
+            "SELECT COUNT(*)::text AS count FROM information_schema.columns WHERE table_name = 'vector_index' AND column_name = 'model_id'" \
+            "1"
+
+          if [ "$FAILED" = "1" ]; then
             echo "VERIFICATION FAILED - one or more fixes not applied"
             exit 1
           fi
 
-          echo "All 5 fixes verified successfully"
+          echo "ALL 5 FIXES VERIFIED OK"
