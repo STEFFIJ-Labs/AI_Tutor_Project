@@ -1,7 +1,22 @@
 -- ============================================================
 -- AI TUTOR PROJECT - DATABASE IN (PostgreSQL)
 -- Author: Stefania Julin
--- Version: 3.0 - Definitive schema before data population
+-- Version: 3.1 - Schema fixes incorporated
+--
+-- CHANGES FROM v3.0:
+-- FIX v3.1-1: Added normalize_iso_code() trigger on language_variant
+--             Any external source (Dependance V2, Firebase) sending
+--             'IT', 'it', 'it-IT' is normalized automatically.
+-- FIX v3.1-2: Added 'und' fallback row in language_variant
+--             ISO 639-2 catch-all for unknown dialects discovered
+--             dynamically by the Semantic Router in production.
+-- FIX v3.1-3: Added variant_confidence FLOAT to content_unit
+--             Semantic Router tracks classification certainty per row.
+-- FIX v3.1-4: VIEW v_content_full_context recreated with
+--             security_invoker = true (RLS bypass fixed).
+-- FIX v3.1-5: Added model_id FK to vector_index
+--             Links each Pinecone vector to the AI model that
+--             generated it. Required for per-model RAG isolation.
 --
 -- CHANGES FROM v2.0:
 -- FIX 1NF: extracted cefr_level, is_idiom, difficulty from JSON
@@ -50,6 +65,12 @@ DROP TABLE IF EXISTS language_variant          CASCADE;
 DROP TABLE IF EXISTS tone_marker               CASCADE;
 DROP TABLE IF EXISTS cultural_context_tag      CASCADE;
 DROP TABLE IF EXISTS ai_model_registry         CASCADE;
+
+-- Drop trigger function if exists (recreated in STEP 10)
+DROP FUNCTION IF EXISTS normalize_iso_code() CASCADE;
+
+-- Drop view if exists (recreated in STEP 11)
+DROP VIEW IF EXISTS v_content_full_context;
 
 
 -- ============================================================
@@ -188,6 +209,10 @@ CREATE TABLE morpho_form (
 -- These are interrogable attributes used by the Semantic Router
 -- and by the AI training pipeline to filter content by level.
 --
+-- FIX v3.1-3: variant_confidence FLOAT added.
+-- Tracks how certain the Semantic Router is about the language
+-- classification of this row. NULL = not yet classified.
+--
 -- cefr_level values: A1 | A2 | B1 | B2 | C1 | C2
 -- difficulty values: easy | medium | hard
 -- content_type values: phrase | vocabulary | dialogue | grammar_rule
@@ -222,6 +247,7 @@ CREATE TABLE content_unit (
     cefr_level           VARCHAR(2),
     is_idiom             BOOLEAN      NOT NULL DEFAULT false,
     difficulty           VARCHAR(10),
+    variant_confidence   FLOAT,
     source_origin        VARCHAR(150),
     created_at           TIMESTAMP    DEFAULT NOW(),
     syntax_ud_json       JSONB,
@@ -306,6 +332,11 @@ CREATE TABLE media_asset (
 -- The Semantic Router queries Pinecone to inject context
 -- from the database into AI model prompts in real time.
 --
+-- FIX v3.1-5: model_id FK added to ai_model_registry.
+-- Each vector is linked to the model that generated it.
+-- Poro embeddings != Aya embeddings != Gemma embeddings.
+-- Without model_id the Router cannot isolate per-model search.
+--
 -- vector_status values: pending | indexed | outdated | error
 -- embedding_model values: text-embedding-ada-002 | multilingual-e5
 -- ============================================================
@@ -315,6 +346,9 @@ CREATE TABLE vector_index (
     embedding_model  VARCHAR(100) NOT NULL,
     vector_status    VARCHAR(20)  NOT NULL DEFAULT 'pending',
     indexed_at       TIMESTAMP    DEFAULT NOW(),
+    model_id         INT REFERENCES ai_model_registry(model_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
     unit_id          INT NOT NULL REFERENCES content_unit(unit_id)
         ON DELETE CASCADE
         ON UPDATE CASCADE
@@ -360,13 +394,82 @@ CREATE TABLE rel_content_tone (
 
 
 -- ============================================================
--- END: schema v3.0 definitive
+-- STEP 10: ISO NORMALIZATION TRIGGER (FIX v3.1-1 + v3.1-2)
+-- Normalizes iso_code on INSERT/UPDATE so any external source
+-- sending 'IT', 'it', 'IT-IT', 'it-it' is stored as 'it-IT'.
+-- Also inserts 'und' fallback variant for unknown dialects.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION normalize_iso_code()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.iso_code = CASE LOWER(REPLACE(NEW.iso_code, '-', ''))
+        WHEN 'itit' THEN 'it-IT'
+        WHEN 'it'   THEN 'it-IT'
+        WHEN 'fifi' THEN 'fi-FI'
+        WHEN 'fi'   THEN 'fi-FI'
+        WHEN 'enen' THEN 'en-EN'
+        WHEN 'en'   THEN 'en-EN'
+        ELSE NEW.iso_code
+    END;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_normalize_iso_code
+BEFORE INSERT OR UPDATE ON language_variant
+FOR EACH ROW EXECUTE FUNCTION normalize_iso_code();
+
+-- FIX v3.1-2: 'und' fallback variant
+-- ISO 639-2 standard code for undetermined language.
+-- Used by Semantic Router when dialect discovery fails.
+-- The Router classifies the row later and updates variant_id.
+INSERT INTO language_variant (iso_code, variant_name, is_pivot, parent_variant_id)
+VALUES ('und', 'Undetermined', false, NULL)
+ON CONFLICT (iso_code) DO NOTHING;
+
+
+-- ============================================================
+-- STEP 11: VIEW v_content_full_context (FIX v3.1-4)
+-- Unified view for Semantic Router real-time queries.
+-- Joins content_unit with language, tone and cultural context.
+-- security_invoker = true: queries run with the caller's
+-- permissions, not the creator's. This respects RLS policies
+-- and prevents data leakage between user roles.
+-- ============================================================
+
+CREATE VIEW v_content_full_context
+WITH (security_invoker = true) AS
+SELECT
+    cu.unit_id,
+    cu.content_raw,
+    cu.content_type,
+    cu.cefr_level,
+    cu.is_idiom,
+    cu.difficulty,
+    cu.variant_confidence,
+    lv.iso_code,
+    lv.variant_name,
+    lv.is_pivot,
+    tm.tone_name,
+    cct.context_name AS theme
+FROM content_unit cu
+JOIN language_variant          lv  ON lv.variant_id  = cu.variant_id
+LEFT JOIN rel_content_tone     rct ON rct.unit_id     = cu.unit_id
+LEFT JOIN tone_marker          tm  ON tm.tone_id      = rct.tone_id
+LEFT JOIN rel_content_context  rcc ON rcc.unit_id     = cu.unit_id
+LEFT JOIN cultural_context_tag cct ON cct.context_id  = rcc.context_id;
+
+
+-- ============================================================
+-- END: schema v3.1 definitive
 -- Tables: 12
--- Foreign keys: 13
--- Referential actions: ON DELETE + ON UPDATE on all FK
+-- Foreign keys: 13 + model_id in vector_index
+-- Trigger: trg_normalize_iso_code on language_variant
+-- View: v_content_full_context (security_invoker = true)
 -- Normalization: 1NF, 2NF, 3NF verified
 -- Ready for population from:
---   - Firebase JSON export
+--   - Firebase JSON export (generate_seeds.py)
 --   - ISO 639 / Glottolog
 --   - Universal Dependencies v2
 -- ============================================================
