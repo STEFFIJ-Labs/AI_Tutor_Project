@@ -281,7 +281,7 @@ jobs:
 
           check_fix "FIX1_trigger" \
             "SELECT COUNT(*)::text AS count FROM information_schema.triggers WHERE trigger_name = 'trg_normalize_iso_code' AND event_object_table = 'language_variant'" \
-            "1"
+            "2"
 
           check_fix "FIX2_und_variant" \
             "SELECT COUNT(*)::text AS count FROM language_variant WHERE iso_code = 'und'" \
