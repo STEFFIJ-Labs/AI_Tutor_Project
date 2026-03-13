@@ -9,8 +9,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Install jq
         run: sudo apt-get install -y jq
+
       - name: Execute schema.sql
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -28,6 +30,7 @@ jobs:
           echo "Response: $BODY"
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
           echo "schema.sql deployed successfully"
+
       - name: Execute add_referential_actions.sql
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -45,6 +48,61 @@ jobs:
           echo "Response: $BODY"
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
           echo "add_referential_actions.sql deployed successfully"
+
+      - name: Execute schema_fixes_v3_1.sql
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(jq -Rs . < sql/schema_fixes_v3_1.sql)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
+          echo "schema_fixes_v3_1.sql deployed successfully"
+
+      - name: Execute schema_fixes_v3_2.sql
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(jq -Rs . < sql/schema_fixes_v3_2.sql)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
+          echo "schema_fixes_v3_2.sql deployed successfully"
+
+      - name: Execute queries.sql
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": $(jq -Rs . < sql/queries.sql)}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
+          echo "queries.sql deployed successfully"
+
       - name: Execute verify_schema.sql
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -62,20 +120,3 @@ jobs:
           echo "Verification result: $BODY"
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
           echo "verify_schema.sql executed successfully"
-      - name: Execute queries.sql
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-        run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -X POST \
-            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"query\": $(jq -Rs . < sql/queries.sql)}")
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | head -1)
-          echo "HTTP Status: $HTTP_CODE"
-          echo "Query results: $BODY"
-          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then exit 1; fi
-          echo "queries.sql executed successfully"
