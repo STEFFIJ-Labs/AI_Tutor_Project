@@ -23,6 +23,7 @@
 !verify_schema.sql
 !seed_data.sql
 !queries.sql
+!create_view.sql
 # --- PY ---
 !firebase_to_sql.py
 
