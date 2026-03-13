@@ -43,6 +43,7 @@
 !DOCUMENTATION.md
 
 !sql/schema_fixes_v3_1.sql
+!schema_fixes_v3_2.sql
 !.github/workflows/deploy-schema-fixes.yml
 !archive/creation_script_v1_0.sql
 !archive/creation_script_v1_0.sql
