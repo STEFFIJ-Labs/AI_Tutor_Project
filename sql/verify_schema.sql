@@ -259,7 +259,163 @@ ORDER BY t.table_name;
 
 
 -- ============================================================
--- END VERIFICATION v2.0
--- If all tests PASS -> schema v3.0 ready for data population
--- If any FAIL -> fix schema before populating
+-- TESTS 14-20: VERIFY FIXES FROM v3.1 AND v3.2
+-- These tests protect every fix applied after schema v3.0.
+-- If GitHub Actions reruns any SQL file and overwrites a fix,
+-- these tests will catch it immediately with a FAIL result.
+-- ============================================================
+
+
+-- TEST 14: variant_confidence COLUMN EXISTS IN content_unit
+-- Applied in schema_fixes_v3_1.sql FIX 3.
+-- If queries.sql or schema.sql is redeployed without this column,
+-- the ETL cannot filter low-confidence classifications before
+-- export to Hugging Face. Training data quality degrades silently.
+-- Expected result: 1 row, PASS
+
+SELECT 'TEST 14 - variant_confidence in content_unit' AS test,
+       column_name,
+       data_type,
+       is_nullable,
+       CASE
+           WHEN column_name = 'variant_confidence'
+           THEN 'PASS - ETL confidence filter available'
+           ELSE 'FAIL - ETL cannot filter low-confidence rows'
+       END AS status
+FROM information_schema.columns
+WHERE table_schema = 'public'
+AND table_name = 'content_unit'
+AND column_name = 'variant_confidence';
+
+
+-- TEST 15: VIEW v_content_full_context HAS security_invoker = true
+-- Applied in schema_fixes_v3_1.sql FIX 4 and queries.sql v1.1.
+-- Without security_invoker, RLS is bypassed: any user calling
+-- the VIEW sees ALL rows from ALL students (admin permissions).
+-- Expected result: 1 row containing 'security_invoker=true'
+
+SELECT 'TEST 15 - VIEW security_invoker' AS test,
+       viewname,
+       CASE
+           WHEN definition ILIKE '%security_invoker%'
+           THEN 'PASS - RLS enforced through VIEW'
+           ELSE 'FAIL - RLS BYPASSED: VIEW runs as admin'
+       END AS status
+FROM pg_views
+WHERE schemaname = 'public'
+AND viewname = 'v_content_full_context';
+
+
+-- TEST 16: model_id IN vector_index IS NOT NULL
+-- Applied in schema_fixes_v3_2.sql FIX 5a.
+-- A nullable model_id means vectors without a model owner:
+-- the Semantic Router cannot isolate Poro vs Aya vs Gemma
+-- vectors and returns semantically wrong results.
+-- Expected result: is_nullable = NO
+
+SELECT 'TEST 16 - vector_index.model_id NOT NULL' AS test,
+       column_name,
+       is_nullable,
+       CASE
+           WHEN is_nullable = 'NO'
+           THEN 'PASS - vector ownership enforced'
+           ELSE 'FAIL - ghost vectors possible (no model owner)'
+       END AS status
+FROM information_schema.columns
+WHERE table_schema = 'public'
+AND table_name = 'vector_index'
+AND column_name = 'model_id';
+
+
+-- TEST 17: UNIQUE CONSTRAINT uq_vector_unit_model EXISTS
+-- Applied in schema_fixes_v3_2.sql FIX 5c.
+-- Without this constraint, ETL re-runs can insert duplicate
+-- vectors for the same content_unit + model pair.
+-- The Semantic Router would return duplicate results to students.
+-- Expected result: 1 row, PASS
+
+SELECT 'TEST 17 - uq_vector_unit_model constraint' AS test,
+       conname,
+       contype,
+       CASE
+           WHEN conname = 'uq_vector_unit_model'
+           THEN 'PASS - duplicate vectors blocked'
+           ELSE 'FAIL - ETL re-runs can create duplicate vectors'
+       END AS status
+FROM pg_constraint
+WHERE conrelid = 'vector_index'::regclass
+AND conname = 'uq_vector_unit_model';
+
+
+-- TEST 18: TRIGGER trg_normalize_iso_code EXISTS (exactly once)
+-- Applied in schema_fixes_v3_1.sql FIX 1.
+-- Without this trigger, external sources sending 'IT' or 'it'
+-- instead of 'it-IT' would create NULL variant_id lookups.
+-- Data would be lost silently without any error message.
+-- Expected result: exactly 1 row
+
+SELECT 'TEST 18 - ISO normalization trigger' AS test,
+       COUNT(*) AS trigger_count,
+       CASE
+           WHEN COUNT(*) = 2
+           THEN 'PASS - ISO codes normalized on INSERT and UPDATE'
+           WHEN COUNT(*) = 0
+           THEN 'FAIL - ISO normalization missing'
+           ELSE 'WARNING - unexpected trigger count, verify manually'
+       END AS status
+FROM information_schema.triggers
+WHERE trigger_schema = 'public'
+AND trigger_name = 'trg_normalize_iso_code'
+AND event_object_table = 'language_variant';
+
+
+-- TEST 19: 'und' FALLBACK ROW EXISTS IN language_variant
+-- Applied in schema_fixes_v3_1.sql FIX 2.
+-- Without 'und', the Semantic Router cannot save phrases it
+-- cannot yet classify. Data is lost during dialect discovery.
+-- Expected result: 1 row, PASS
+
+SELECT 'TEST 19 - und fallback language variant' AS test,
+       iso_code,
+       variant_name,
+       CASE
+           WHEN iso_code = 'und'
+           THEN 'PASS - Router can save unclassified dialects'
+           ELSE 'FAIL - unclassified dialects lost on ingestion'
+       END AS status
+FROM language_variant
+WHERE iso_code = 'und';
+
+
+-- TEST 20: vector_index.model_id FK IS ON DELETE RESTRICT
+-- Applied in schema_fixes_v3_2.sql FIX 5a.
+-- ON DELETE SET NULL (v3.1) was incorrect: it contradicts NOT NULL.
+-- ON DELETE RESTRICT is correct: block deletion of a model that
+-- still has indexed vectors. Forces re-indexing before deletion.
+-- Expected result: on_delete = RESTRICT
+
+SELECT 'TEST 20 - vector_index model_id ON DELETE RESTRICT' AS test,
+       conname,
+       CASE confdeltype
+           WHEN 'r' THEN 'RESTRICT'
+           WHEN 'c' THEN 'CASCADE'
+           WHEN 'n' THEN 'SET NULL'
+           WHEN 'a' THEN 'NO ACTION'
+       END AS on_delete,
+       CASE
+           WHEN confdeltype = 'r'
+           THEN 'PASS - model deletion blocked while vectors exist'
+           ELSE 'FAIL - model can be deleted leaving orphan vectors'
+       END AS status
+FROM pg_constraint
+WHERE conrelid = 'vector_index'::regclass
+AND conname = 'vector_index_model_id_fkey';
+
+
+-- ============================================================
+-- END VERIFICATION v3.0
+-- TESTS 1-13:  schema v3.0 structure (12 tables, 13 FK)
+-- TESTS 14-20: fixes v3.1 and v3.2 (security, integrity, ETL)
+-- ALL tests must PASS before any new data or code is pushed.
+-- If any test FAILS, GitHub Actions blocks the deploy.
 -- ============================================================

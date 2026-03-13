@@ -1,10 +1,11 @@
 -- ============================================================
 -- AI TUTOR PROJECT - SQL QUERIES
 -- Author: Stefania Julin
--- Version: 1.0
+-- Version: 1.1
 -- Purpose: 6 meaningful queries + 1 VIEW for university assignment
--- Database: AI Tutor Database IN (PostgreSQL 16.11)
--- Schema version: 3.0
+-- Database: AI Tutor Database IN (PostgreSQL 17.6)
+-- Schema version: 3.1
+-- v1.1 changes: VIEW updated with security_invoker=true and variant_confidence
 -- ============================================================
 
 
@@ -187,10 +188,19 @@ ORDER BY total_units DESC;
 --   without joining 5 tables every time.
 --   Implemented as a VIEW because this join is executed
 --   thousands of times per day in production and must be fast.
+--
+-- SECURITY NOTE (fix applied from schema_fixes_v3_1.sql):
+--   security_invoker = true: the VIEW executes with the
+--   permissions of the caller, not the creator (admin).
+--   Without this, RLS policies on underlying tables are
+--   completely bypassed - any user sees all rows.
+--
+-- v3.1 CHANGE: added cu.variant_confidence column.
+--   Required by ETL to filter out low-confidence classifications
+--   before export to Hugging Face (only rows >= 0.7 exported).
 -- ============================================================
 
-DROP VIEW IF EXISTS v_content_full_context;
-CREATE VIEW v_content_full_context
+CREATE OR REPLACE VIEW v_content_full_context
 WITH (security_invoker = true) AS
 SELECT
     cu.unit_id,
@@ -199,6 +209,7 @@ SELECT
     cu.cefr_level,
     cu.is_idiom,
     cu.difficulty,
+    cu.variant_confidence,
     lv.iso_code,
     lv.variant_name,
     lv.is_pivot,
