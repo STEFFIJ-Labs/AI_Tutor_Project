@@ -17,7 +17,7 @@
 --   Themes with fewer than 10 phrases may produce undertrained models.
 -- Tables: content_unit, rel_content_context, cultural_context_tag
 -- ============================================================
-
+DROP VIEW IF EXISTS v_content_full_context;s
 SELECT
     cct.context_name                        AS theme,
     COUNT(cu.unit_id)                       AS phrase_count
