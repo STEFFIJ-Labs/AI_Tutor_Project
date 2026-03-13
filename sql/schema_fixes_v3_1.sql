@@ -135,6 +135,7 @@ SELECT
     cu.cefr_level,
     cu.is_idiom,
     cu.difficulty,
+    cu.variant_confidence,
     lv.iso_code,
     lv.variant_name,
     lv.is_pivot,
