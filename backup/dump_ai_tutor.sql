@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict L7F0uUUONKeQZFPZMJQf8I3BbbeSyTpstK3p02biJm3PnWyUiqSOiqcAjZppW01
+\restrict Zd5o8csopgCg5nODjMC46Grmd9wOuN7twmQjPOpcsBV33OcpS2J3Bz4E7OAkTBp
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
@@ -174,6 +174,13 @@ CREATE TABLE public.content_unit (
     source_metadata_json jsonb,
     variant_id integer
 );
+
+
+--
+-- Name: COLUMN content_unit.variant_confidence; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.content_unit.variant_confidence IS 'Semantic Router classification confidence (0.0-1.0). NULL = unprocessed. ETL exports only rows >= 0.7. Populated by Router during ingestion or background re-classification.';
 
 
 --
@@ -473,11 +480,11 @@ CREATE VIEW public.v_content_full_context WITH (security_invoker='true') AS
     tm.tone_name,
     cct.context_name AS theme
    FROM (((((public.content_unit cu
-     JOIN public.language_variant lv ON ((lv.variant_id = cu.variant_id)))
-     LEFT JOIN public.rel_content_tone rct ON ((rct.unit_id = cu.unit_id)))
-     LEFT JOIN public.tone_marker tm ON ((tm.tone_id = rct.tone_id)))
-     LEFT JOIN public.rel_content_context rcc ON ((rcc.unit_id = cu.unit_id)))
-     LEFT JOIN public.cultural_context_tag cct ON ((cct.context_id = rcc.context_id)));
+     JOIN public.language_variant lv ON ((cu.variant_id = lv.variant_id)))
+     LEFT JOIN public.rel_content_tone rct ON ((cu.unit_id = rct.unit_id)))
+     LEFT JOIN public.tone_marker tm ON ((rct.tone_id = tm.tone_id)))
+     LEFT JOIN public.rel_content_context rcc ON ((cu.unit_id = rcc.unit_id)))
+     LEFT JOIN public.cultural_context_tag cct ON ((rcc.context_id = cct.context_id)));
 
 
 --
@@ -490,9 +497,16 @@ CREATE TABLE public.vector_index (
     embedding_model character varying(100) NOT NULL,
     vector_status character varying(20) DEFAULT 'pending'::character varying NOT NULL,
     indexed_at timestamp without time zone DEFAULT now(),
-    model_id integer,
+    model_id integer NOT NULL,
     unit_id integer NOT NULL
 );
+
+
+--
+-- Name: COLUMN vector_index.model_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.vector_index.model_id IS 'FK to ai_model_registry. NOT NULL: weak entity existence dependency on ai_model_registry (Elmasri ch.7). ON DELETE RESTRICT: model cannot be deleted while vectors still reference it. Re-index first, then delete. Finnish queries search only Poro vectors (model_id=1), Italian dialect queries search only Aya vectors (model_id=2).';
 
 
 --
@@ -857,6 +871,21 @@ ALTER TABLE ONLY public.tone_marker
 
 
 --
+-- Name: vector_index uq_vector_unit_model; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vector_index
+    ADD CONSTRAINT uq_vector_unit_model UNIQUE (unit_id, model_id);
+
+
+--
+-- Name: CONSTRAINT uq_vector_unit_model ON vector_index; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_vector_unit_model ON public.vector_index IS 'Natural uniqueness: each content_unit is embedded once per model. Prevents duplicate Pinecone vectors from ETL re-runs.';
+
+
+--
 -- Name: vector_index vector_index_pinecone_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -876,7 +905,7 @@ ALTER TABLE ONLY public.vector_index
 -- Name: language_variant trg_normalize_iso_code; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_normalize_iso_code BEFORE INSERT OR UPDATE ON public.language_variant FOR EACH ROW EXECUTE FUNCTION public.normalize_iso_code();
+CREATE TRIGGER trg_normalize_iso_code BEFORE INSERT OR UPDATE OF iso_code ON public.language_variant FOR EACH ROW EXECUTE FUNCTION public.fn_normalize_iso_code();
 
 
 --
@@ -980,7 +1009,7 @@ ALTER TABLE ONLY public.rel_content_tone
 --
 
 ALTER TABLE ONLY public.vector_index
-    ADD CONSTRAINT vector_index_model_id_fkey FOREIGN KEY (model_id) REFERENCES public.ai_model_registry(model_id) ON UPDATE CASCADE ON DELETE SET NULL;
+    ADD CONSTRAINT vector_index_model_id_fkey FOREIGN KEY (model_id) REFERENCES public.ai_model_registry(model_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
 --
@@ -1067,5 +1096,5 @@ ALTER TABLE public.vector_index ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict L7F0uUUONKeQZFPZMJQf8I3BbbeSyTpstK3p02biJm3PnWyUiqSOiqcAjZppW01
+\unrestrict Zd5o8csopgCg5nODjMC46Grmd9wOuN7twmQjPOpcsBV33OcpS2J3Bz4E7OAkTBp
 
