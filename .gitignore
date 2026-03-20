@@ -24,6 +24,7 @@
 !seed_data.sql
 !queries.sql
 !create_view.sql
+sql/rls_policies.sql
 # --- PY ---
 !firebase_to_sql.py
 
