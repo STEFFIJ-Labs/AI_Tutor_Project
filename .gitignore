@@ -61,4 +61,5 @@
 !sql/seed_03_3_lemma.sql
 !sql/seed_04a_relations.sql
 !sql/seed_04b_media.sql
+!sql/rls_policies.sql
 !.github/workflows/deploy-seeds.yml
