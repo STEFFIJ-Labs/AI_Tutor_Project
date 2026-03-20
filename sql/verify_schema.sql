@@ -295,15 +295,14 @@ AND column_name = 'variant_confidence';
 -- Expected result: 1 row containing 'security_invoker=true'
 
 SELECT 'TEST 15 - VIEW security_invoker' AS test,
-       viewname,
+       relname AS viewname,
        CASE
-           WHEN definition ILIKE '%security_invoker%'
+           WHEN 'security_invoker=true' = ANY(reloptions)
            THEN 'PASS - RLS enforced through VIEW'
            ELSE 'FAIL - RLS BYPASSED: VIEW runs as admin'
        END AS status
-FROM pg_views
-WHERE schemaname = 'public'
-AND viewname = 'v_content_full_context';
+FROM pg_class
+WHERE relname = 'v_content_full_context';
 
 
 -- TEST 16: model_id IN vector_index IS NOT NULL

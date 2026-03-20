@@ -6,7 +6,7 @@ INSERT INTO language_variant (variant_id, iso_code, variant_name, is_pivot, pare
     (1, 'it-IT', 'Standard Italian', false, NULL),
     (2, 'fi-FI', 'Standard Finnish',  false, NULL),
     (3, 'en-EN', 'Standard English',  true,  NULL)
-ON CONFLICT (iso_code) DO NOTHING;
+ON CONFLICT DO NOTHING;
 SELECT setval('language_variant_variant_id_seq', 3);
 
 INSERT INTO tone_marker (tone_id, tone_name) VALUES

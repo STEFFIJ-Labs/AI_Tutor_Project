@@ -200,7 +200,8 @@ COMMENT ON COLUMN content_unit.variant_confidence IS
 --       Only the security context changes.
 -- ============================================================
 
-CREATE OR REPLACE VIEW v_content_full_context
+DROP VIEW IF EXISTS v_content_full_context CASCADE;
+CREATE VIEW v_content_full_context
 WITH (security_invoker = true) AS
 SELECT
     cu.unit_id,
