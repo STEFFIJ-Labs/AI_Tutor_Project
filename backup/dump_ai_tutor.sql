@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Zd5o8csopgCg5nODjMC46Grmd9wOuN7twmQjPOpcsBV33OcpS2J3Bz4E7OAkTBp
+\restrict aL7meP02A1CnCUVCICRS6vk3gSG8ubDW85W3xtGcx0mDm5jSkjto1GjslcpdoHg
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
@@ -1021,10 +1021,150 @@ ALTER TABLE ONLY public.vector_index
 
 
 --
+-- Name: ai_model_registry admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.ai_model_registry TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: content_unit admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.content_unit TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: correction_feedback_log admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.correction_feedback_log TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: cultural_context_tag admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.cultural_context_tag TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: language_variant admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.language_variant TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: lemma admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.lemma TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: media_asset admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.media_asset TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: morpho_form admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.morpho_form TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: rel_content_context admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.rel_content_context TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: rel_content_tone admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.rel_content_tone TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: tone_marker admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.tone_marker TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
+-- Name: vector_index admin_full_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_full_access ON public.vector_index TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
+
+
+--
 -- Name: ai_model_registry; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.ai_model_registry ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: content_unit anon_read_content; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY anon_read_content ON public.content_unit FOR SELECT TO anon USING (true);
+
+
+--
+-- Name: cultural_context_tag anon_read_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY anon_read_context ON public.cultural_context_tag FOR SELECT TO anon USING (true);
+
+
+--
+-- Name: language_variant anon_read_language; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY anon_read_language ON public.language_variant FOR SELECT TO anon USING (true);
+
+
+--
+-- Name: lemma anon_read_lemma; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY anon_read_lemma ON public.lemma FOR SELECT TO anon USING (true);
+
+
+--
+-- Name: morpho_form anon_read_morpho; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY anon_read_morpho ON public.morpho_form FOR SELECT TO anon USING (true);
+
+
+--
+-- Name: rel_content_context anon_read_rel_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY anon_read_rel_context ON public.rel_content_context FOR SELECT TO anon USING (true);
+
+
+--
+-- Name: rel_content_tone anon_read_rel_tone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY anon_read_rel_tone ON public.rel_content_tone FOR SELECT TO anon USING (true);
+
+
+--
+-- Name: tone_marker anon_read_tone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY anon_read_tone ON public.tone_marker FOR SELECT TO anon USING (true);
+
 
 --
 -- Name: content_unit; Type: ROW SECURITY; Schema: public; Owner: -
@@ -1081,6 +1221,34 @@ ALTER TABLE public.rel_content_context ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rel_content_tone ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: content_unit student_read_content; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY student_read_content ON public.content_unit FOR SELECT TO authenticated USING (((auth.jwt() ->> 'role'::text) <> 'admin'::text));
+
+
+--
+-- Name: language_variant student_read_language; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY student_read_language ON public.language_variant FOR SELECT TO authenticated USING (((auth.jwt() ->> 'role'::text) <> 'admin'::text));
+
+
+--
+-- Name: lemma student_read_lemma; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY student_read_lemma ON public.lemma FOR SELECT TO authenticated USING (((auth.jwt() ->> 'role'::text) <> 'admin'::text));
+
+
+--
+-- Name: morpho_form student_read_morpho; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY student_read_morpho ON public.morpho_form FOR SELECT TO authenticated USING (((auth.jwt() ->> 'role'::text) <> 'admin'::text));
+
+
+--
 -- Name: tone_marker; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -1096,5 +1264,5 @@ ALTER TABLE public.vector_index ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Zd5o8csopgCg5nODjMC46Grmd9wOuN7twmQjPOpcsBV33OcpS2J3Bz4E7OAkTBp
+\unrestrict aL7meP02A1CnCUVCICRS6vk3gSG8ubDW85W3xtGcx0mDm5jSkjto1GjslcpdoHg
 
