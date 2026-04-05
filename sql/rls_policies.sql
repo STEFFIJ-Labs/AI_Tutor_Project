@@ -78,3 +78,4 @@ CREATE POLICY admin_full_access ON correction_feedback_log
 
 CREATE POLICY admin_full_access ON vector_index
     TO postgres USING (true);
+
