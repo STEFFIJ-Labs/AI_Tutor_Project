@@ -63,3 +63,4 @@
 !sql/seed_04b_media.sql
 !.github/workflows/deploy-seeds.yml
 !.github/workflows/keep-alive.yml
+!sql/manual_reset_schema.sql

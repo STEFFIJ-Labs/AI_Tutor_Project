@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'sql/schema.sql'
       - 'sql/add_referential_actions.sql'
       - 'sql/schema_fixes_v3_1.sql'
       - 'sql/schema_fixes_v3_2.sql'
