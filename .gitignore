@@ -62,3 +62,4 @@
 !sql/seed_04a_relations.sql
 !sql/seed_04b_media.sql
 !.github/workflows/deploy-seeds.yml
+!.github/workflows/keep-alive.yml

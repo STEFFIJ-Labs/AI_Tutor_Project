@@ -3,9 +3,16 @@ name: Deploy Schema to Supabase
 on:
   push:
     branches: [main]
+    paths:
+      - 'sql/schema.sql'
+      - 'sql/add_referential_actions.sql'
+      - 'sql/schema_fixes_v3_1.sql'
+      - 'sql/schema_fixes_v3_2.sql'
+      - 'sql/create_view.sql'
+      - 'sql/queries.sql'
+      - 'sql/verify_schema.sql'
+      - 'sql/rls_policies.sql'
   workflow_dispatch:
-  schedule:
-    - cron: '0 6 * * 1'
 
 jobs:
   deploy-schema:

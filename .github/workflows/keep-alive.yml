@@ -1,0 +1,44 @@
+name: Supabase Keep-Alive Ping
+
+on:
+  schedule:
+    - cron: '0 3 */5 * *'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - name: Ping database with SELECT 1
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"query": "SELECT 1 AS alive;"}')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "Ping result — HTTP: $HTTP_CODE | Body: $BODY"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "WARNING: Database may be paused. Go to Supabase Dashboard and click Restore."
+            exit 1
+          fi
+          echo "Database is alive."
+
+      - name: Log row counts
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"query": "SELECT '\''content_unit'\'' AS table_name, COUNT(*) AS rows FROM content_unit UNION ALL SELECT '\''lemma'\'', COUNT(*) FROM lemma UNION ALL SELECT '\''media_asset'\'', COUNT(*) FROM media_asset;"}')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "Row counts — HTTP: $HTTP_CODE"
+          echo "$BODY"
