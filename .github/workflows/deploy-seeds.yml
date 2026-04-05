@@ -1,10 +1,6 @@
 name: Deploy Seeds
 
 on:
-  workflow_run:
-    workflows: ["Deploy Schema to Supabase"]
-    types:
-      - completed
   workflow_dispatch:
 
 jobs:
