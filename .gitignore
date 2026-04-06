@@ -66,3 +66,4 @@ sql/rls_policies.sql
 !.github/workflows/deploy-seeds.yml
 !.github/workflows/keep-alive.yml
 !.github/workflows/data-guardian.yml
+!backup/dump_ai_tutor_prev.sql
