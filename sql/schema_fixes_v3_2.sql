@@ -128,12 +128,6 @@ EXECUTE FUNCTION fn_normalize_iso_code();
 --       filter out variant_confidence < 0.7 before export.
 -- ============================================================
 
-INSERT INTO language_variant
-    (iso_code, variant_name, is_pivot, parent_variant_id)
-VALUES
-    ('und', 'Undetermined', false, NULL)
-ON CONFLICT (iso_code) DO NOTHING;
-
 -- ============================================================
 -- FIX 3: variant_confidence COLUMN IN content_unit
 -- ============================================================
