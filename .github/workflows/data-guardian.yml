@@ -1,31 +1,27 @@
-name: Data Guardian — Emergency Reseed
-
-# ============================================================
-# PURPOSE: Objective 3 from project spec.
-# Runs every day at 04:00 UTC. Checks if content_unit is empty.
-# If empty, triggers deploy-seeds workflow automatically.
-# This is the safety net against Supabase free tier data loss.
-#
-# Reference: Fundamentals of Database Systems Ch.25 —
-# distributed systems must handle node failure and recovery.
-# This workflow implements the recovery layer.
-# ============================================================
+name: Data Guardian — Emergency Recovery
 
 on:
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  check-and-reseed:
+  check-and-recover:
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - name: Check row count in content_unit
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check database row count
         id: check
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" \
@@ -38,8 +34,8 @@ jobs:
           BODY=$(echo "$RESPONSE" | head -1)
           echo "HTTP: $HTTP_CODE | Body: $BODY"
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
-            echo "WARNING: Cannot reach database — may be paused."
             echo "db_reachable=false" >> $GITHUB_OUTPUT
+            echo "db_empty=false" >> $GITHUB_OUTPUT
             exit 0
           fi
           ROWS=$(echo "$BODY" | jq -r '.[0].rows // "0"')
@@ -51,23 +47,107 @@ jobs:
             echo "db_empty=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Trigger emergency reseed if database is empty
+      - name: Find best available backup
+        id: find_backup
         if: steps.check.outputs.db_empty == 'true'
         run: |
-          echo "ALERT: content_unit is empty — triggering emergency reseed."
+          CURRENT="backup/dump_ai_tutor.sql"
+          PREV="backup/dump_ai_tutor_prev.sql"
+          CURRENT_COUNT=0
+          PREV_COUNT=0
+          if [ -f "$CURRENT" ]; then
+            CURRENT_COUNT=$(grep -c '^INSERT INTO' "$CURRENT" || echo 0)
+          fi
+          if [ -f "$PREV" ]; then
+            PREV_COUNT=$(grep -c '^INSERT INTO' "$PREV" || echo 0)
+          fi
+          echo "Current backup INSERT rows: $CURRENT_COUNT"
+          echo "Previous backup INSERT rows: $PREV_COUNT"
+          if [ "$CURRENT_COUNT" -gt 100 ]; then
+            echo "backup_file=$CURRENT" >> $GITHUB_OUTPUT
+            echo "backup_ok=true" >> $GITHUB_OUTPUT
+            echo "backup_rows=$CURRENT_COUNT" >> $GITHUB_OUTPUT
+          elif [ "$PREV_COUNT" -gt 100 ]; then
+            echo "backup_file=$PREV" >> $GITHUB_OUTPUT
+            echo "backup_ok=true" >> $GITHUB_OUTPUT
+            echo "backup_rows=$PREV_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "backup_ok=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install PostgreSQL 17 client
+        if: >
+          steps.check.outputs.db_empty == 'true' &&
+          steps.find_backup.outputs.backup_ok == 'true'
+        run: |
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            > /etc/apt/sources.list.d/pgdg.list'
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Restore from backup
+        if: >
+          steps.check.outputs.db_empty == 'true' &&
+          steps.find_backup.outputs.backup_ok == 'true'
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          BACKUP_FILE="${{ steps.find_backup.outputs.backup_file }}"
+          BACKUP_ROWS="${{ steps.find_backup.outputs.backup_rows }}"
+          echo "Restoring from $BACKUP_FILE ($BACKUP_ROWS INSERT rows)..."
+          /usr/lib/postgresql/17/bin/psql \
+            "postgresql://postgres.${SUPABASE_PROJECT_ID}:${SUPABASE_DB_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres" \
+            -f "$BACKUP_FILE"
+          echo "Restore completed."
+
+      - name: Trigger emergency seed as last resort
+        if: >
+          steps.check.outputs.db_empty == 'true' &&
+          steps.find_backup.outputs.backup_ok == 'false'
+        run: |
+          echo "LAST RESORT: Both backups empty — triggering deploy-seeds."
+          echo "WARNING: Restores Firebase data only."
           curl -s -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/STEFFIJ-Labs/AI_Tutor_Project/actions/workflows/deploy-seeds.yml/dispatches" \
             -d '{"ref": "main"}'
-          echo "Deploy Seeds workflow triggered."
 
-      - name: Report status
+      - name: Verify recovery
+        if: steps.check.outputs.db_empty == 'true'
+        run: |
+          sleep 30
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"query": "SELECT COUNT(*) AS rows FROM content_unit;"}')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          ROWS=$(echo "$BODY" | jq -r '.[0].rows // "0"')
+          echo "Post-recovery content_unit rows: $ROWS"
+          if [ "$ROWS" = "0" ]; then
+            echo "RECOVERY FAILED — content_unit still empty."
+            exit 1
+          fi
+          echo "RECOVERY SUCCESSFUL — $ROWS rows restored."
+
+      - name: Log final status
+        if: always()
         run: |
           ROWS="${{ steps.check.outputs.rows }}"
           EMPTY="${{ steps.check.outputs.db_empty }}"
-          if [ "$EMPTY" = "true" ]; then
-            echo "STATUS: Database was empty — reseed triggered automatically."
+          BACKUP_OK="${{ steps.find_backup.outputs.backup_ok }}"
+          if [ "$EMPTY" != "true" ]; then
+            echo "Database healthy — content_unit has $ROWS rows."
+          elif [ "$BACKUP_OK" = "true" ]; then
+            echo "Database was empty — restored from backup."
           else
-            echo "STATUS: Database healthy — content_unit has $ROWS rows."
+            echo "Database was empty — seed triggered as last resort."
           fi

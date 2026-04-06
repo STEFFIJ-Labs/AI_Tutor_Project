@@ -1,8 +1,9 @@
 name: Weekly Database Backup
+
 on:
   schedule:
-    - cron: '0 2 * * 1'  # ogni lunedì alle 02:00 UTC
-  workflow_dispatch:      # puoi anche lanciarlo manualmente
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -10,9 +11,12 @@ permissions:
 jobs:
   backup:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install PostgreSQL 17 client
         run: |
@@ -26,6 +30,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
 
+      - name: Rotate previous backup
+        run: |
+          mkdir -p backup
+          if [ -f backup/dump_ai_tutor.sql ]; then
+            cp backup/dump_ai_tutor.sql backup/dump_ai_tutor_prev.sql
+            echo "Rotated: dump_ai_tutor.sql -> dump_ai_tutor_prev.sql"
+            echo "Previous backup lines: $(wc -l < backup/dump_ai_tutor_prev.sql)"
+          else
+            echo "No previous backup found — first run."
+          fi
+
       - name: Dump database to SQL file
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -33,18 +48,32 @@ jobs:
         run: |
           /usr/lib/postgresql/17/bin/pg_dump \
             "postgresql://postgres.${SUPABASE_PROJECT_ID}:${SUPABASE_DB_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres" \
-            --schema=public \
+            -n public \
             --no-owner \
             --no-acl \
             -f backup/dump_ai_tutor.sql
-          echo "Dump completed"
-          wc -l backup/dump_ai_tutor.sql
+          echo "Dump completed."
+          echo "Lines in new backup: $(wc -l < backup/dump_ai_tutor.sql)"
+          echo "INSERT rows: $(grep -c '^INSERT INTO' backup/dump_ai_tutor.sql || echo 0)"
 
-      - name: Commit dump to repository
+      - name: Verify backup contains data
         run: |
-          mkdir -p backup
+          INSERT_COUNT=$(grep -c '^INSERT INTO' backup/dump_ai_tutor.sql || echo 0)
+          echo "INSERT statements found: $INSERT_COUNT"
+          if [ "$INSERT_COUNT" -lt 100 ]; then
+            echo "BACKUP FAILED — fewer than 100 INSERT rows found."
+            if [ -f backup/dump_ai_tutor_prev.sql ]; then
+              cp backup/dump_ai_tutor_prev.sql backup/dump_ai_tutor.sql
+              echo "Restored previous backup to protect data."
+            fi
+            exit 1
+          fi
+          echo "Backup verified OK — $INSERT_COUNT INSERT rows."
+
+      - name: Commit both backups to repository
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add backup/dump_ai_tutor.sql
-          git diff --staged --quiet || git commit -m "backup: auto database dump $(date +'%Y-%m-%d %H:%M')"
+          git add backup/dump_ai_tutor.sql backup/dump_ai_tutor_prev.sql
+          git diff --staged --quiet || git commit -m "backup: $(date +'%Y-%m-%d') — full dump with rotation"
           git push
