@@ -64,3 +64,5 @@ sql/rls_policies.sql
 !sql/seed_04b_media.sql
 !sql/rls_policies.sql
 !.github/workflows/deploy-seeds.yml
+!.github/workflows/keep-alive.yml
+!.github/workflows/data-guardian.yml
