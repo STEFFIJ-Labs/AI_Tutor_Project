@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 3ZBE75a2Tnsox23ElnAzsA9vYogKhOFzbRXpQDfqlwkc1pacOUeT6SCUeJ89c33
+\restrict xjzTX9tcIGOwFk0gLOSSbxBL14bDKmx2d6ZuJzjvMTWaaz4K3adELHPgEVF3Gqh
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -12854,5 +12854,5 @@ ALTER TABLE public.vector_index ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 3ZBE75a2Tnsox23ElnAzsA9vYogKhOFzbRXpQDfqlwkc1pacOUeT6SCUeJ89c33
+\unrestrict xjzTX9tcIGOwFk0gLOSSbxBL14bDKmx2d6ZuJzjvMTWaaz4K3adELHPgEVF3Gqh
 

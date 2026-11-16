@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict xjzTX9tcIGOwFk0gLOSSbxBL14bDKmx2d6ZuJzjvMTWaaz4K3adELHPgEVF3Gqh
+\restrict DwQLFcAJZVJer9PAxYGGP1ZsdhqHCawgap9N6TbK2h1PoaOiIlQGFtNd7sLb6uu
 
 -- Dumped from database version 17.6
--- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
+-- Dumped by pg_dump version 17.12 (Ubuntu 17.12-1.pgdg24.04+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -12854,5 +12854,5 @@ ALTER TABLE public.vector_index ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xjzTX9tcIGOwFk0gLOSSbxBL14bDKmx2d6ZuJzjvMTWaaz4K3adELHPgEVF3Gqh
+\unrestrict DwQLFcAJZVJer9PAxYGGP1ZsdhqHCawgap9N6TbK2h1PoaOiIlQGFtNd7sLb6uu
 
